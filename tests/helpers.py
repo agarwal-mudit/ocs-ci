@@ -534,7 +534,6 @@ def create_storage_class(
         pass
     return create_resource(**sc_data)
 
-
 def create_pvc(
     sc_name, pvc_name=None, namespace=defaults.ROOK_CLUSTER_NAMESPACE,
     size=None, do_reload=True, access_mode=constants.ACCESS_MODE_RWO,
@@ -605,6 +604,70 @@ def create_multiple_pvcs(
         ) for _ in range(number_of_pvc)
     ]
 
+def create_restore_pvc(
+        sc_name, snap_name, pvc_name=None, namespace=defaults.ROOK_CLUSTER_NAMESPACE,
+        size=None, do_reload=True, access_mode=constants.ACCESS_MOD_RWO,
+        volume_mode=None
+):
+    """
+    Create pvc from a snapshot
+    Args:
+        sc_name (str): The name of the storageclass
+        snap_name (str): The name of the snapshot from which pvc would be created
+        pvc_name (str): The name of the PVC being created
+        namespace (str): The namespace for the PVC creation
+        size (str): Size of pvc being created
+        do_reload (bool): True for wait for reloading PVC after its creation, False otherwise
+        access_mode (str): The access mode to be used for the PVC
+        volume_mode (str): Volume mode for rbd RWX pvc i.e. 'Block'
+    Returns:
+        PVC: PVC instance
+    """
+    pvc_data = templating.load_yaml(constants.CSI_RBD_PVC_RESTORE_YAML)
+    pvc_data['metadata']['name'] = (
+        pvc_name if pvc_name else create_unique_resource_name(
+            'test', 'pvc'
+        )
+    )
+    pvc_data['metadata']['namespace'] = namespace
+    pvc_data['spec']['accessModes'] = access_mode
+    pvc_data['spec']['storageClassName'] = sc_name
+    if size:
+        pvc_data['spec']['resources']['requests']['storage'] = size
+    if volume_mode:
+        pvc_data['spec']['volumeMode'] = volume_mode
+    pvc_data['spec']['dataSource']['name'] = snap_name
+    ocs_obj = pvc.PVC(**pvc_data)
+    created_pvc = ocs_obj.create(do_reload=do_reload)
+    assert created_pvc, f"Failed to create resource {pvc_name}"
+    return ocs_obj
+
+def create_pvc_snapshot(
+    snapshot_sc_name, pvc_name, snapshot_name=None,
+    namespace=defaults.ROOK_CLUSTER_NAMESPACE
+):
+    """
+    Create snapshot of a pvc
+    Args:
+        sc_name (str): The name of the snapshot class
+        pvc_name (str): The name of the pvc whose snapshot ie being created
+        snapshot_name (str): The name of the snapshot to be created
+        namespace (str): The namespace for the PVC creation
+    Returns:
+        SNAP: Snapshot object
+    """
+    snapshot_data = templating.load_yaml(constants.CSI_RBD_SNAPSHOTCLASS_YAML)
+    snapshot_data['metadata']['name'] = (
+        snapshot_name if snapshot_name else create_unique_resource_name(
+            'test', 'snapshot'
+        )
+    )
+    snapshot_data['spec']['snapshotClassName'] = snapshot_sc_name
+    snapshot_data['spec']['source']['persistentVolumeClaimName'] = snapshot_sc_name
+    snapshot_obj = snapshot.SNAP(**snapshot_data)
+    created_snap = ocs_obj.create(do_reload=do_reload)
+    assert created_snap, f"Failed to create snapshot {snapshot_name}"
+    return snapshot_obj
 
 def verify_block_pool_exists(pool_name):
     """
