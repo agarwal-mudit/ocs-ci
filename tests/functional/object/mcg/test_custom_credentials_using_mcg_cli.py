@@ -17,7 +17,8 @@ from ocs_ci.helpers.helpers import get_s3_credentials_from_secret
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
-mcg_cli = constants.NOOBAA_OPERATOR_LOCAL_CLI_PATH
+# Use version-appropriate CLI path
+mcg_cli = constants.get_noobaa_cli_path()
 
 
 @red_squad
@@ -28,13 +29,19 @@ class TestCustomCredsUsingMcgCli(MCGTest):
         Update noobaa account with custom credential values
         """
         namespace = config.ENV_DATA["cluster_namespace"]
-        output = run_cmd(
-            cmd=f"{mcg_cli} account credentials {account_name} "
-            + f"--access-key={access_key} "
-            + f"--secret-key={secret_key} "
-            + f"-n {namespace}",
-            ignore_error=True,
-        )
+
+        # Build command based on CLI version
+        command_prefix = constants.get_noobaa_cli_command_prefix()
+        if command_prefix:
+            # For odf-cli: odf-cli noobaa account credentials
+            cmd = f"{mcg_cli} {command_prefix} account credentials {account_name}"
+        else:
+            # For mcg-cli: mcg-cli account credentials
+            cmd = f"{mcg_cli} account credentials {account_name}"
+
+        cmd += f" --access-key={access_key} --secret-key={secret_key} -n {namespace}"
+
+        output = run_cmd(cmd=cmd, ignore_error=True)
         logger.info(output)
 
     @skipif_ocs_version("<4.17")
@@ -48,9 +55,23 @@ class TestCustomCredsUsingMcgCli(MCGTest):
         5. Validate custom credentials against against length and valid characters
         """
         if not Path(mcg_cli).exists():
-            retrieve_cli_binary(cli_type="mcg")
+            # Download appropriate CLI binary based on version
+            from ocs_ci.utility import version
 
-        output = run_cmd(cmd=f"{mcg_cli} version")
+            ocs_version = version.get_semantic_ocs_version_from_config()
+            if ocs_version >= version.VERSION_4_20:
+                retrieve_cli_binary(cli_type="odf")
+            else:
+                retrieve_cli_binary(cli_type="mcg")
+
+        # Build version command based on CLI version
+        command_prefix = constants.get_noobaa_cli_command_prefix()
+        if command_prefix:
+            version_cmd = f"{mcg_cli} {command_prefix} version"
+        else:
+            version_cmd = f"{mcg_cli} version"
+
+        output = run_cmd(cmd=version_cmd)
         logger.info(output)
         account_name = get_random_str(5)
         original_acc_credentials = mcg_account_factory(name=account_name)
