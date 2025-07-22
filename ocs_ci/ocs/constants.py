@@ -2238,6 +2238,8 @@ RGW_ROUTE_EXTERNAL_MODE = "ocs-external-storagecluster-cephobjectstore"
 NOOBAA_OPERATOR_POD_CLI_PATH = "/usr/local/bin/noobaa-operator"
 NOOBAA_OPERATOR_LOCAL_CLI_PATH = os.path.join(DATA_DIR, "mcg-cli")
 CLI_TOOL_LOCAL_PATH = os.path.join(DATA_DIR, "odf-cli")
+# New constant for unified CLI usage (same as CLI_TOOL_LOCAL_PATH but more explicit)
+ODF_CLI_LOCAL_PATH = os.path.join(DATA_DIR, "odf-cli")
 DEFAULT_INGRESS_CRT = "router-ca.crt"
 DEFAULT_INGRESS_CRT_LOCAL_PATH = f"{DATA_DIR}/mcg-{DEFAULT_INGRESS_CRT}"
 SERVICE_CA_CRT = "service-ca.crt"
@@ -3462,3 +3464,43 @@ HIGH_RECOVERY_OPS = "high_recovery_ops"
 MCLOCK_HIGH_CLIENT_OPS = "high_client_ops"
 MCLOCK_BALANCED = "balanced"
 MCLOCK_HIGH_RECOVERY_OPS = "high_recovery_ops"
+
+
+def get_noobaa_cli_path():
+    """
+    Get the appropriate NooBaa CLI path based on OCS version.
+
+    For OCS version >= 4.20: Returns path to odf-cli
+    For OCS version < 4.20: Returns path to mcg-cli
+
+    Returns:
+        str: Path to the CLI binary to use for NooBaa operations
+    """
+    from ocs_ci.utility import version
+
+    ocs_version = version.get_semantic_ocs_version_from_config()
+
+    if ocs_version >= version.VERSION_4_20:
+        return ODF_CLI_LOCAL_PATH
+    else:
+        return NOOBAA_OPERATOR_LOCAL_CLI_PATH
+
+
+def get_noobaa_cli_command_prefix():
+    """
+    Get the appropriate command prefix for NooBaa CLI operations.
+
+    For OCS version >= 4.20: Returns 'noobaa' (for odf-cli noobaa <command>)
+    For OCS version < 4.20: Returns '' (for mcg-cli <command>)
+
+    Returns:
+        str: Command prefix to insert between CLI binary and actual command
+    """
+    from ocs_ci.utility import version
+
+    ocs_version = version.get_semantic_ocs_version_from_config()
+
+    if ocs_version >= version.VERSION_4_20:
+        return "noobaa"
+    else:
+        return ""
